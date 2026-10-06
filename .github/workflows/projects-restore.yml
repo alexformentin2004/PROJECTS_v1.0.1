@@ -1,0 +1,32 @@
+name: Ripristina file PROJECTS
+on:
+  push:
+    paths:
+      - '.projects_restore/**'
+      - '.github/workflows/projects-restore.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Extract PROJECTS source files
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat .projects_restore/part* > /tmp/projects-missing.tar.xz
+          tar -tJf /tmp/projects-missing.tar.xz | head -70
+          tar -xJf /tmp/projects-missing.tar.xz -C .
+          test -f css/app.css
+          test -f js/app.js
+          test -f js/services/project-service.js
+          test -f assets/icons/icon-192.png
+          git add css/ js/ assets/ docs/ tests/
+          if ! git diff --cached --quiet; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git commit -m "Restore all PROJECTS v1.0.1 PWA source files"
+            git push origin HEAD:main
+          fi
