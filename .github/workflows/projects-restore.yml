@@ -1,32 +1,46 @@
-name: Ripristina file PROJECTS
+name: Ripristina PROJECTS da ZIP
 on:
   push:
     paths:
-      - '.projects_restore/**'
-      - '.github/workflows/projects-restore.yml'
+      - 'PROJECTS_v1.0.1.zip'
   workflow_dispatch:
 permissions:
   contents: write
+concurrency:
+  group: projects-restore
+  cancel-in-progress: false
 jobs:
   restore:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Extract PROJECTS source files
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Extract and validate app files
         shell: bash
         run: |
           set -euo pipefail
-          cat .projects_restore/part* > /tmp/projects-missing.tar.xz
-          tar -tJf /tmp/projects-missing.tar.xz | head -70
-          tar -xJf /tmp/projects-missing.tar.xz -C .
-          test -f css/app.css
-          test -f js/app.js
-          test -f js/services/project-service.js
-          test -f assets/icons/icon-192.png
+          test -f PROJECTS_v1.0.1.zip || { echo "Carica PROJECTS_v1.0.1.zip nella root del repository"; exit 1; }
+          mkdir -p /tmp/projects-restore
+          unzip -q PROJECTS_v1.0.1.zip -d /tmp/projects-restore
+          src=/tmp/projects-restore/PROJECTS_v1.0.1
+          test -f "$src/index.html"
+          test -f "$src/css/app.css"
+          test -f "$src/js/app.js"
+          test -f "$src/js/services/project-service.js"
+          test -f "$src/assets/icons/icon-192.png"
+          cp -a "$src/css" "$src/js" "$src/assets" "$src/docs" "$src/tests" .
+          test -f css/app.css && test -f js/app.js
+          test -f js/services/backup-service.js && test -f assets/icons/icon-512.png
+          test -f sw.js && test -f manifest.json
+          for file in js/*.js js/services/*.js; do node --check "$file"; done
           git add css/ js/ assets/ docs/ tests/
-          if ! git diff --cached --quiet; then
+          if git diff --cached --quiet; then
+            echo "Tutti i file sono gia presenti"
+          else
             git config user.name "github-actions[bot]"
             git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-            git commit -m "Restore all PROJECTS v1.0.1 PWA source files"
+            git commit -m "Ripristina file PROJECTS v1.0.1 da ZIP"
             git push origin HEAD:main
           fi
